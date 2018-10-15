@@ -39,4 +39,4 @@ RUN luarocks make
 # Clone our repo
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
-RUN git clone https://github.com/1adrianb/2D-and-3D-face-alignment
+RUN git clone https://github.com/thanhhvnqb/2D-and-3D-face-alignment
