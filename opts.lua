@@ -7,18 +7,18 @@ local function parse( arg )
     cmd:text('Options:')
 
     -- Options
-    cmd:option('-mode', 'demo', 'Options: demo | generate | eval')
-    cmd:option('-type', '2D', 'Options: 2D | 3D | 3D-full')
+    cmd:option('-mode', 'eval', 'Options: demo | generate | eval')
+    cmd:option('-type', '3D', 'Options: 2D | 3D | 3D-full')
 
     -- Models location
-    cmd:option('-model', 'models/2D-FAN.t7', 'Path to the t7 model')
+    cmd:option('-model', 'models/3D-FAN.t7', 'Path to the t7 model')
     cmd:option('-modelZ', 'models/depth.t7', 'Path to the t7 model for depth prediction')
 
     -- Data options
     cmd:option('-save', 'true', 'Save predictions in the folder specified as output')
-    cmd:option('-detectFaces', 'false', 'Use VJ opencv implementation to detect faces') 
-    cmd:option('-input',  'dataset/LS3D-W/', 'Path to the dataset.')
-    cmd:option('-output',  'dataset/LS3D-W/out/', 'Path where to save the predictions.')
+    cmd:option('-detectFaces', 'false', 'Use VJ opencv implementation to detect faces')
+    cmd:option('-input',  '../300VW-3D/CatB/', 'Path to the dataset.')
+    cmd:option('-output',  'out/300VW-3D/CatB/', 'Path where to save the predictions.')
     cmd:option('-device', 'cuda', 'Options: cpu, gpu')
     cmd:option('-limitedGpuMemory','false', 'if true : swap between loaded 2D/3D models in Gpu to save some space, if 3D-full prediction required')
     cmd:option('-outputFormat', 't7', 'Output format: t7 | txt')

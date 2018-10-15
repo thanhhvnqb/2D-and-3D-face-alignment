@@ -3,6 +3,8 @@ local py = require 'fb.python' -- Required for plotting
 -- Import python libraries
 py.exec([=[
 import numpy as np
+import matplotlib as mpl
+mpl.use('Agg')
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -26,7 +28,7 @@ function utils.drawGaussian(img, pt, sigma)
         buffer[size] = image.gaussian(size):float()
     end
     local g = buffer[size]
-    
+
     -- Usable gaussian range
     local g_x = {math.max(1, 2-ul[1]), math.min(size, size + (width - br[1]))}
     local g_y = {math.max(1, 2-ul[2]), math.min(size, size + (height - br[2]))}
@@ -34,7 +36,7 @@ function utils.drawGaussian(img, pt, sigma)
     -- Image range
     local img_x = {math.max(1, ul[1]), math.min(br[1], width)}
     local img_y = {math.max(1, ul[2]), math.min(br[2], height)}
-    
+
     img:sub(img_y[1], img_y[2], img_x[1], img_x[2]):cmax(g:sub(g_y[1], g_y[2], g_x[1], g_x[2]))
     return img
 end
@@ -88,7 +90,7 @@ function utils.getPreds(heatmaps, center, scale)
     preds[{{}, {}, 1}]:apply(function(x) return (x - 1) % heatmaps:size(4) + 1 end)
     preds[{{}, {}, 2}]:add(-1):div(heatmaps:size(3)):floor():add(1)
 
-    for i = 1,preds:size(1) do        
+    for i = 1,preds:size(1) do
         for j = 1,preds:size(2) do
             local hm = heatmaps[{i,j,{}}]
             local pX, pY = preds[{i,j,1}], preds[{i,j,2}]
@@ -170,10 +172,10 @@ end
 
 function utils.get_normalisation(bbox)
     local minX, minY, maxX, maxY = unpack(bbox:totable())
-    
+
     local center = torch.FloatTensor{maxX-(maxX-minX)/2, maxY-(maxY-minY)/2}
     center[2] =center[2]-((maxY-minY)*0.12)
-    
+
     return center, (math.abs(maxX-minX)+math.abs(maxY-minY))/195, math.sqrt((maxX-minX)*(maxY-minY))
 end
 
@@ -228,7 +230,7 @@ elif preds.shape[1]==3:
     ax.plot(preds[36:42,0],preds[36:42,1],marker='o',markersize=6,linestyle='-',color='w',lw=2)
     ax.plot(preds[42:48,0],preds[42:48,1],marker='o',markersize=6,linestyle='-',color='w',lw=2)
     ax.plot(preds[48:60,0],preds[48:60,1],marker='o',markersize=6,linestyle='-',color='w',lw=2)
-    ax.plot(preds[60:68,0],preds[60:68,1],marker='o',markersize=6,linestyle='-',color='w',lw=2) 
+    ax.plot(preds[60:68,0],preds[60:68,1],marker='o',markersize=6,linestyle='-',color='w',lw=2)
     ax.axis('off')
 
     if ('detected_face' in vars() or 'detected_face' in globals()) and (detected_face is not None):
@@ -252,12 +254,12 @@ elif preds.shape[1]==3:
     ax.plot3D(preds[36:42,0]*1.2,preds[36:42,1],preds[36:42,2], color='blue')
     ax.plot3D(preds[42:48,0]*1.2,preds[42:48,1],preds[42:48,2], color='blue')
     ax.plot3D(preds[48:,0]*1.2,preds[48:,1],preds[48:,2], color='blue' )
-    
+
     ax.view_init(elev=90., azim=90.)
     ax.set_xlim(ax.get_xlim()[::-1])
     plt.show()
 
-]=],{input=surface:float():view(3,256,256), preds = points, detected_face = detectedFace})	
+]=],{input=surface:float():view(3,256,256), preds = points, detected_face = detectedFace})
 end
 
 function utils.readpts(file_path)
@@ -265,13 +267,13 @@ function utils.readpts(file_path)
 	for line in io.lines(file_path) do
 		lines[#lines+1] = line
 	end
-	
+
 	local num_points = tonumber(lines[2]:split(' ')[2])
 	local pts = torch.Tensor(num_points,2)
 	for i = 4,3+num_points do
 		pts[{{i-3},{}}] = torch.Tensor{lines[i]:split(' ')[1],lines[i]:split(' ')[2]}
 	end
-	
+
 	return pts
 end
 
@@ -297,7 +299,8 @@ function utils.getFileList(opts)
     for f in paths.files(data_path, function (file) return file:find('.jpg') or file:find('.png') end) do
         -- Check if we have .t7, .mat, .npy or .pts file
         local pts = utils.loadUnkownFile(paths.concat(data_path,f:sub(1,#f-4)))
-	    local data_pts = {}
+        local data_pts = {}
+        data_pts.output_dir = opts.output
 
         if pts ~= nil then
             local center, scale, normby = utils.bounding_box(pts)
@@ -309,9 +312,9 @@ function utils.getFileList(opts)
 
             filesList[#filesList+1] = data_pts
 
-	elseif paths.filep(data_path..f:sub(1,#f-4)..'_bb.t7') then -- TODO: Improve this
+        elseif paths.filep(data_path..f:sub(1,#f-4)..'_bb.t7') then -- TODO: Improve this
             local bdBox = utils.loadUnkownFile(data_path..f:sub(1,#f-4)..'_bb') -- minX, minY, maxX, maxY
-            local center, scale, normby = utils.get_normalisation(bdBox) 
+            local center, scale, normby = utils.get_normalisation(bdBox)
             data_pts.image = data_path..f
             data_pts.scale = scale
             data_pts.center = center
@@ -327,6 +330,48 @@ function utils.getFileList(opts)
             requireDetectionCnt = requireDetectionCnt + 1
         end
     end
+    rev_data_path = data_path
+    for dir in paths.iterdirs(rev_data_path) do
+        data_path = rev_data_path..dir..'/'
+        print(data_path)
+        if not paths.dirp(opts.output..dir..'/') and not paths.mkdir(opts.output..dir..'/') then
+            cmd:error('error: unable to create output directory: '..opts.output..'\n')
+        end
+        for f in paths.files(data_path, function (file) return file:find('.jpg') or file:find('.png') end) do
+            -- Check if we have .t7, .mat, .npy or .pts file
+            local pts = utils.loadUnkownFile(paths.concat(data_path,f:sub(1,#f-4)))
+            local data_pts = {}
+            data_pts.output_dir = opts.output..dir..'/'
+
+            if pts ~= nil then
+                local center, scale, normby = utils.bounding_box(pts)
+                data_pts.image = data_path..f
+                data_pts.scale = scale
+                data_pts.center = center
+                data_pts.points = pts
+                data_pts.bbox_size = normby
+
+                filesList[#filesList+1] = data_pts
+
+            elseif paths.filep(data_path..f:sub(1,#f-4)..'_bb.t7') then -- TODO: Improve this
+                local bdBox = utils.loadUnkownFile(data_path..f:sub(1,#f-4)..'_bb') -- minX, minY, maxX, maxY
+                local center, scale, normby = utils.get_normalisation(bdBox)
+                data_pts.image = data_path..f
+                data_pts.scale = scale
+                data_pts.center = center
+                data_pts.points = torch.zeros(68,2) -- holder for pts
+                data_pts.bbox_size = normby
+
+                filesList[#filesList+1] = data_pts
+            elseif opts.detectFaces then
+                data_pts.image = data_path..f
+                data_pts.points = torch.zeros(68,2)
+
+                filesList[#filesList+1] = data_pts
+                requireDetectionCnt = requireDetectionCnt + 1
+            end
+        end
+    end
     print('Found '..#filesList..' images')
     print(requireDetectionCnt..' images require a face detector')
     return filesList, requireDetectionCnt
@@ -337,10 +382,13 @@ local errors = torch.mean(dists,1):view(dists:size(2))
 py.exec([=[
 axes1 = np.linspace(0,1,1000)
 axes2 = np.zeros(1000)
+print('No plus')
 print(errors.shape[0])
+dataset = '300VW-3D-CatB'
+np.save(dataset + '.npy', errors)
 for i in range(1000):
     axes2[i] = (errors<axes1[i]).sum()/float(errors.shape[0])
-
+plt.figure()
 plt.xlim(0,7)
 plt.ylim(0,100)
 plt.yticks(np.arange(0,110,10))
@@ -353,8 +401,43 @@ plt.ylabel('Test Images (%)', fontsize=16)
 plt.plot(axes1*100,axes2*100,'b-',label='FAN (Ours)',lw=3)
 plt.legend(loc=4, fontsize=16)
 
-plt.show()
+# plt.show()
+plt.savefig(dataset + '.png')
 print('AUC: ',np.sum(axes2[:70])/70)
+print('mean NME: ', np.mean(errors))
+print('std NME: ', np.std(errors))
+]=],{errors = errors})
+end
+
+function utils.calculateMetrics_plus(dists)
+local errors = torch.mean(dists,1):view(dists:size(2))
+py.exec([=[
+axes1 = np.linspace(0,1,1000)
+axes2 = np.zeros(1000)
+print('With plus')
+print(errors.shape[0])
+dataset = '300VW-3D-CatB'
+np.save(dataset + '_plus.npy', errors)
+for i in range(1000):
+    axes2[i] = (errors<axes1[i]).sum()/float(errors.shape[0])
+plt.figure()
+plt.xlim(0,7)
+plt.ylim(0,100)
+plt.yticks(np.arange(0,110,10))
+plt.xticks(np.arange(0,8,1))
+
+plt.grid()
+plt.title('NME (%)', fontsize=20)
+plt.xlabel('NME (%)', fontsize=16)
+plt.ylabel('Test Images (%)', fontsize=16)
+plt.plot(axes1*100,axes2*100,'b-',label='FAN (Ours)',lw=3)
+plt.legend(loc=4, fontsize=16)
+
+# plt.show()
+plt.savefig(dataset + '_plus.png')
+print('AUC: ',np.sum(axes2[:70])/70)
+print('mean NME: ', np.mean(errors))
+print('std NME: ', np.std(errors))
 ]=],{errors = errors})
 end
 

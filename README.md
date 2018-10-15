@@ -12,6 +12,15 @@ Note: If you are interested in a binarized version, capable of running on device
 <img src='https://www.adrianbulat.com/images/image-z-examples.png' title='3D-FAN-Full example' style='max-width:600px'></img>
 </p>
 
+
+## Updated (Thanhhvnqb)
+- Modified code to run evaluation on LS3D-W dataset by using nvidia-docker.
+```bash
+docker pull 1adrianb/facealignment-torch
+nvidia-docker run --net=host -it -v ../LS3D-W/:/workspace/3dfan/ 1adrianb/facealignment-torch
+
+```
+
 ## Requirments
 
 - Install the latest [Torch7](http://torch.ch/docs/getting-started.html) version (for Windows, please follow the instructions available [here](https://github.com/torch/distro/blob/master/win-files/README.md))

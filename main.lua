@@ -24,6 +24,7 @@ torch.setnumthreads(1)
 
 local fileList, requireDetectionCnt = utils.getFileList(opts)
 local predictions = {}
+local predictions_plus = {}
 local faceDetector = nil
 
 if requireDetectionCnt > 0 then faceDetector = FaceDetector() end
@@ -35,12 +36,12 @@ local model
 
 if opts.limitedGpuMemory == 'true' and opts.device == 'gpu' then
   model = cpuMemoryModel:clone()
-  
-else 
+
+else
   model = cpuMemoryModel
 end
 
---if deveice spcified to be gpu 
+--if deveice spcified to be gpu
 if opts.device == 'gpu' then model = model:cuda() end
 
 
@@ -53,16 +54,16 @@ model:evaluate()
 local modelZ
 local cpuMemoryModelZ
 
-if opts.type == '3D-full' then 
-    
+if opts.type == '3D-full' then
+
   cpuMemoryModelZ = torch.load(opts.modelZ)
-  
+
   if opts.device == 'gpu' and opts.limitedGpuMemory == 'false' then
-      
+
     modelZ = cpuMemoryModelZ
     modelZ = modelZ:cuda()
     modelZ:evaluate()
-		
+
   elseif opts.device == 'cpu'  then
   modelZ = cpuMemoryModelZ
   modelZ:evaluate()
@@ -73,59 +74,59 @@ for i = 1, #fileList do
 
   collectgarbage()
   print("processing ",fileList[i].image)
-  
+
   local img = image.load(fileList[i].image)
-  
+
   -- Convert grayscale to pseudo-rgb
   if img:size(1)==1 then
     print("\n-- Convert grayscale to pseudo-rgb")
     img = torch.repeatTensor(img,3,1,1)
   end
-   
+
   -- Detect faces, if needed
   local detectedFaces, detectedFace
-  
+
   if fileList[i].scale == nil then
-        
-    detectedFaces = faceDetector:detect(img)      
-    if(#detectedFaces<1) then 
+
+    detectedFaces = faceDetector:detect(img)
+    if(#detectedFaces<1) then
       print('********skip ',fileList[i].image)
-      goto continue 
+      goto continue
       end -- When continue is missing
-    
+
     -- Compute only for the first face for now
     fileList[i].center, fileList[i].scale =	utils.get_normalisation(detectedFaces[1])
     detectedFace = detectedFaces[1]
-        
+
   end
-  
+
   img = utils.crop(img, fileList[i].center, fileList[i].scale, 256):view(1,3,256,256)
-    
+
   --cuda--
   if opts.device ~= 'cpu' then img = img:cuda() end
-  
+
   local output = model:forward(img)[4]:clone()
-  
+
   output:add(utils.flip(utils.shuffleLR(model:forward(utils.flip(img))[4])))
-  
+
   local preds_hm, preds_img = utils.getPreds(output, fileList[i].center, fileList[i].scale)
 
   preds_hm = preds_hm:view(68,2):float()*4
-  
-  --there is no need to save the output in the gpu now 
-  output = nil 
+
+  --there is no need to save the output in the gpu now
+  output = nil
   collectgarbage()
-  
-  --if limited gpu memory is true now it's the time to swap between 2D and 3D prediction models 
+
+  --if limited gpu memory is true now it's the time to swap between 2D and 3D prediction models
   if opts.limitedGpuMemory=='true' and opts.type == '3D-full' and opts.device == 'gpu' then
     model = nil
     collectgarbage()
     modelZ = (cpuMemoryModelZ:clone()):cuda()
-    modelZ:evaluate()    
+    modelZ:evaluate()
     collectgarbage()
-    
+
   end
-  
+
   --proceed to 3D depth prediction (if the gpu limited memory is false then the 3D prediction model would be already loaded at the gpu memory at initialize steps and the 2D model stay at its place)
   -- depth prediction
   if opts.type == '3D-full' then
@@ -139,24 +140,24 @@ for i = 1, #fileList do
     local inputZ = torch.cat(img:float(), out, 2)
 
     if opts.device ~= 'cpu' then inputZ = inputZ:cuda() end
-    
-    local depth_pred = modelZ:forward(inputZ):float():view(68,1) 
-    
+
+    local depth_pred = modelZ:forward(inputZ):float():view(68,1)
+
     preds_hm = torch.cat(preds_hm, depth_pred, 2)
     preds_img = torch.cat(preds_img:view(68,2), depth_pred*(1/(256/(200*fileList[i].scale))),2)
-    
+
   end
-  
+
   --put back the 2D prediction model and pop the 3D model
   if opts.limitedGpuMemory=='true' and opts.type == '3D-full' and opts.device == 'gpu' then
     modelZ = nil
-    collectgarbage()    
+    collectgarbage()
     model = (cpuMemoryModel:clone()):cuda()
     model:evaluate()
   end
 
   if opts.mode == 'demo' then
-      
+
     if detectedFace ~= nil then
         -- Converting it to the predicted space (for plotting)
         detectedFace[{{3,4}}] = utils.transform(torch.Tensor({detectedFace[3],detectedFace[4]}), fileList[i].center, fileList[i].scale, 256)
@@ -166,11 +167,12 @@ for i = 1, #fileList do
         detectedFace[4] = detectedFace[4]-detectedFace[2]
     end
     utils.plot(img, preds_hm, detectedFace)
-  
+
   end
 
   if opts.save then
-      local dest = opts.output..'/'..paths.basename(fileList[i].image, '.'..paths.extname(fileList[i].image))
+      -- local dest = opts.output..'/'..paths.basename(fileList[i].image, '.'..paths.extname(fileList[i].image))
+      local dest = fileList[i].output_dir..'/'..paths.basename(fileList[i].image, '.'..paths.extname(fileList[i].image))
       if opts.outputFormat == 't7' then
         torch.save(dest..'.t7', preds_img)
       elseif opts.outputFormat == 'txt' then
@@ -189,18 +191,23 @@ for i = 1, #fileList do
   end
 
   if opts.mode == 'eval' then
-      predictions[i] = preds_img:clone() + 1.75
+      predictions[i] = preds_img:clone()-- + 1.75
+      predictions_plus[i] = preds_img:clone() + 1.75
       xlua.progress(i,#fileList)
   end
-	
+
   collectgarbage();
 
   ::continue::
-      
+
 end
 
 if opts.mode == 'eval' then
     predictions = torch.cat(predictions,1)
     local dists = utils.calcDistance(predictions,fileList)
     utils.calculateMetrics(dists)
+
+    predictions_plus = torch.cat(predictions_plus,1)
+    local dists = utils.calcDistance(predictions_plus,fileList)
+    utils.calculateMetrics_plus(dists)
 end

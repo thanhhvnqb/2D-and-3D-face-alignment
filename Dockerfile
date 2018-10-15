@@ -30,6 +30,12 @@ RUN git clone https://github.com/facebook/fblualib
 WORKDIR /opt/fblualib/fblualib/python
 RUN luarocks make rockspec/*
 
+# Build npy4th
+WORKDIR /opt
+RUN git clone https://github.com/htwaijry/npy4th
+WORKDIR /opt/npy4th
+RUN luarocks make
+
 # Clone our repo
 WORKDIR /workspace
 RUN chmod -R a+w /workspace
